@@ -1,0 +1,27 @@
+{
+  "com.badlogic.gdx.scenes.scene2d.ui.Button$ButtonStyle": {
+    "default": {
+      "up": "pause-up",
+      "down": "pause-down"
+    },
+    "backbutton-style": {
+      "up": "back-up",
+      "down": "back-up"
+    }
+  },
+  "com.badlogic.gdx.scenes.scene2d.ui.TextButton$TextButtonStyle": {
+    "levelbutton-style": {
+      "up": "level-up",
+      "down": "level-up",
+      "font": "default-font"
+    },
+    "lockedlevel-style": {
+      "up": "locked-level",
+      "down": "locked-level",
+      "font": "default-font"
+    }
+  },
+  "default-font": {
+    "file": "default.fnt"
+  }
+}
