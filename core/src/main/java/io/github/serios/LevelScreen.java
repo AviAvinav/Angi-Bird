@@ -1,6 +1,7 @@
 package io.github.serios;
 
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.InputAdapter;
 import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
@@ -8,97 +9,143 @@ import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.physics.box2d.*;
-import com.badlogic.gdx.scenes.scene2d.Stage;
-import com.badlogic.gdx.scenes.scene2d.ui.Skin;
+import com.badlogic.gdx.physics.box2d.joints.MouseJoint;
+import com.badlogic.gdx.physics.box2d.joints.MouseJointDef;
 import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.badlogic.gdx.utils.viewport.Viewport;
 
 public class LevelScreen implements Screen {
-  // Basic Box2D world
   private World world;
   private Box2DDebugRenderer debugRenderer;
   private OrthographicCamera camera;
   private Viewport viewport;
   private SpriteBatch batch;
   private Texture image;
-  private Main game;
-  private Stage stage;
   private Texture background;
-  private Skin skin;
   private Body redBody;
   private Body groundBody;
+  private MouseJoint mouseJoint;
+  private MouseJointDef mouseJointDef;
+  private Body dummyBody;
+  private Body slingBody;
+  private Texture slingTexture;
 
   public LevelScreen(Main game) {
-    this.game = game;
     camera = new OrthographicCamera();
-    viewport = new FitViewport(800 / 100f, 480 / 100f, camera); // Convert pixels to meters
-    camera.position.set(
-        viewport.getWorldWidth() / 2, viewport.getWorldHeight() / 2, 0); // Center the camera
+    viewport = new FitViewport(800 / 100f, 480 / 100f, camera);
+    camera.position.set(viewport.getWorldWidth() / 2, viewport.getWorldHeight() / 2, 0);
     camera.update();
 
     batch = new SpriteBatch();
     background = new Texture("levelBackground.jpg");
-    skin = new Skin(Gdx.files.internal("uiskin.json"));
     image = new Texture("red.png");
     world = new World(new Vector2(0, -9.8f), true);
-    stage = new Stage(new FitViewport(800, 480));
-    Gdx.input.setInputProcessor(stage);
-
     debugRenderer = new Box2DDebugRenderer();
 
     createFallingBody();
     createGroundBody();
+    setupInputProcessor();
+
+    // Create a dummy body for the MouseJoint
+    BodyDef bodyDef = new BodyDef();
+    bodyDef.type = BodyDef.BodyType.StaticBody;
+    dummyBody = world.createBody(bodyDef);
   }
 
   private void createFallingBody() {
-    // Define the body
     BodyDef bodyDef = new BodyDef();
-    bodyDef.type = BodyDef.BodyType.DynamicBody; // Falling due to gravity
-    bodyDef.position.set(
-        viewport.getWorldWidth() / 2, viewport.getWorldHeight() - 1); // Place above ground
-
+    bodyDef.type = BodyDef.BodyType.DynamicBody;
+    bodyDef.position.set(viewport.getWorldWidth() / 2, viewport.getWorldHeight() - 1);
     redBody = world.createBody(bodyDef);
 
-    // Define the shape
     PolygonShape shape = new PolygonShape();
-    float halfWidth = image.getWidth() / 2f / 100f; // Convert pixels to meters
-    float halfHeight = image.getHeight() / 2f / 100f;
+    float halfWidth = image.getWidth() / 2f / 100f / 30f;
+    float halfHeight = image.getHeight() / 2f / 100f / 30f;
     shape.setAsBox(halfWidth, halfHeight);
 
-    // Define the fixture
     FixtureDef fixtureDef = new FixtureDef();
     fixtureDef.shape = shape;
     fixtureDef.density = 1f;
     fixtureDef.friction = 0.5f;
-    fixtureDef.restitution = 0.2f; // Slight bounciness
+    fixtureDef.restitution = 0.2f;
 
     redBody.createFixture(fixtureDef);
     shape.dispose();
   }
 
   private void createGroundBody() {
-    // Position the ground at the bottom of the screen
-    float groundY = 1f; // Half meter above the bottom in world units
+    float groundY = 1f;
 
-    // Define the body
     BodyDef bodyDef = new BodyDef();
-    bodyDef.type = BodyDef.BodyType.StaticBody; // Does not move
+    bodyDef.type = BodyDef.BodyType.StaticBody;
     bodyDef.position.set(viewport.getWorldWidth() / 2, groundY);
 
     groundBody = world.createBody(bodyDef);
 
-    // Define the shape
     EdgeShape groundShape = new EdgeShape();
-    groundShape.set(
-        -viewport.getWorldWidth() / 2, 0, viewport.getWorldWidth() / 2, 0); // Line across the width
+    groundShape.set(-viewport.getWorldWidth() / 2, 0, viewport.getWorldWidth() / 2, 0);
 
-    // Define the fixture
     FixtureDef fixtureDef = new FixtureDef();
     fixtureDef.shape = groundShape;
     fixtureDef.friction = 0.8f;
 
     groundBody.createFixture(fixtureDef);
     groundShape.dispose();
+  }
+
+  private Vector2 dragStart = new Vector2(); // To store the drag start position
+
+  private void setupInputProcessor() {
+    Gdx.input.setInputProcessor(
+        new InputAdapter() {
+          @Override
+          public boolean touchDown(int screenX, int screenY, int pointer, int button) {
+            Vector2 worldCoordinates = viewport.unproject(new Vector2(screenX, screenY));
+            if (redBody.getFixtureList().first().testPoint(worldCoordinates)) {
+              if (mouseJoint == null) {
+                mouseJointDef = new MouseJointDef();
+                mouseJointDef.bodyA = dummyBody;
+                mouseJointDef.bodyB = redBody;
+                mouseJointDef.collideConnected = true;
+                mouseJointDef.target.set(worldCoordinates);
+                mouseJointDef.maxForce = 1000.0f * redBody.getMass();
+                mouseJoint = (MouseJoint) world.createJoint(mouseJointDef);
+                dragStart.set(worldCoordinates); // Store the start position
+              }
+              return true;
+            }
+            return false;
+          }
+
+          @Override
+          public boolean touchDragged(int screenX, int screenY, int pointer) {
+            if (mouseJoint != null) {
+              Vector2 worldCoordinates = viewport.unproject(new Vector2(screenX, screenY));
+              mouseJoint.setTarget(worldCoordinates);
+            }
+            return true;
+          }
+
+          @Override
+          public boolean touchUp(int screenX, int screenY, int pointer, int button) {
+            if (mouseJoint != null) {
+              // Calculate release velocity
+              Vector2 releasePosition = viewport.unproject(new Vector2(screenX, screenY));
+              Vector2 dragDirection =
+                  dragStart.sub(releasePosition); // Opposite direction of the drag
+              float velocityMultiplier = 5f; // Adjust this for speed control
+              Vector2 releaseVelocity = dragDirection.scl(velocityMultiplier);
+
+              // Apply the velocity to the redBody
+              redBody.setLinearVelocity(releaseVelocity);
+
+              // Destroy the mouse joint
+              world.destroyJoint(mouseJoint);
+              mouseJoint = null;
+            }
+            return true;
+          }
+        });
   }
 
   @Override
@@ -110,8 +157,6 @@ public class LevelScreen implements Screen {
     batch.setProjectionMatrix(camera.combined);
 
     batch.begin();
-
-    // Draw the background
     batch.draw(
         background,
         camera.position.x - camera.viewportWidth / 2,
@@ -119,13 +164,10 @@ public class LevelScreen implements Screen {
         camera.viewportWidth,
         camera.viewportHeight);
 
-    // Get the red body's position
     Vector2 position = redBody.getPosition();
     float angle = redBody.getAngle();
-
-    // Convert position from meters to pixels and draw the texture to fit the body's size
-    float bodyWidth = image.getWidth() / 100f; // Convert pixels to meters
-    float bodyHeight = image.getHeight() / 100f;
+    float bodyWidth = image.getWidth() / 100f / 30f;
+    float bodyHeight = image.getHeight() / 100f / 30f;
     batch.draw(
         image,
         position.x - bodyWidth / 2,
@@ -143,13 +185,9 @@ public class LevelScreen implements Screen {
         image.getHeight(),
         false,
         false);
-
     batch.end();
 
-    debugRenderer.render(world, camera.combined);
     world.step(1 / 60f, 6, 2);
-    stage.act(delta);
-    stage.draw();
   }
 
   @Override
@@ -157,6 +195,15 @@ public class LevelScreen implements Screen {
     viewport.update(width, height);
     camera.position.set(viewport.getWorldWidth() / 2, viewport.getWorldHeight() / 2, 0);
     camera.update();
+  }
+
+  @Override
+  public void dispose() {
+    batch.dispose();
+    image.dispose();
+    world.dispose();
+    debugRenderer.dispose();
+    background.dispose();
   }
 
   @Override
@@ -170,14 +217,4 @@ public class LevelScreen implements Screen {
 
   @Override
   public void resume() {}
-
-  @Override
-  public void dispose() {
-    batch.dispose();
-    image.dispose();
-    world.dispose();
-    debugRenderer.dispose();
-    stage.dispose();
-    skin.dispose();
-  }
 }
