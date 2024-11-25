@@ -1,4 +1,5 @@
 package io.github.serios;
+
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.graphics.GL20;
@@ -10,131 +11,173 @@ import com.badlogic.gdx.physics.box2d.*;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.Skin;
 import com.badlogic.gdx.utils.viewport.FitViewport;
-import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.badlogic.gdx.utils.viewport.Viewport;
 
 public class LevelScreen implements Screen {
-    // basic box2d world
-    private World world;
-    private Box2DDebugRenderer debugRenderer;
-    private OrthographicCamera camera;
-    private Viewport viewport;
-    private SpriteBatch batch;
-    private Texture image;
-    private Main game;
-    private Stage stage;
-    private Texture background;
-    private Skin skin;
-    private Body redBody;
+  // Basic Box2D world
+  private World world;
+  private Box2DDebugRenderer debugRenderer;
+  private OrthographicCamera camera;
+  private Viewport viewport;
+  private SpriteBatch batch;
+  private Texture image;
+  private Main game;
+  private Stage stage;
+  private Texture background;
+  private Skin skin;
+  private Body redBody;
+  private Body groundBody;
 
-    public LevelScreen(Main game) {
-        this.game = game;
-        camera = new OrthographicCamera();
-        viewport = new FitViewport(800, 480, camera);
-        batch = new SpriteBatch();
-        background = new Texture("levelBackground.jpg");
-        skin = new Skin(Gdx.files.internal("uiskin.json"));
-        image = new Texture("red.png");
-        world = new World(new Vector2(0, -9.8f), true);
-        stage = new Stage(new ScreenViewport());
-        Gdx.input.setInputProcessor(stage);
+  public LevelScreen(Main game) {
+    this.game = game;
+    camera = new OrthographicCamera();
+    viewport = new FitViewport(800 / 100f, 480 / 100f, camera); // Convert pixels to meters
+    camera.position.set(
+        viewport.getWorldWidth() / 2, viewport.getWorldHeight() / 2, 0); // Center the camera
+    camera.update();
 
-        debugRenderer = new Box2DDebugRenderer();
+    batch = new SpriteBatch();
+    background = new Texture("levelBackground.jpg");
+    skin = new Skin(Gdx.files.internal("uiskin.json"));
+    image = new Texture("red.png");
+    world = new World(new Vector2(0, -9.8f), true);
+    stage = new Stage(new FitViewport(800, 480));
+    Gdx.input.setInputProcessor(stage);
 
-        // Create a dynamic body for the spinning texture
-        BodyDef redBodyDef = new BodyDef();
-        redBodyDef.type = BodyDef.BodyType.DynamicBody;
-        redBodyDef.position.set(0, 0); // Place it at the center of the world
+    debugRenderer = new Box2DDebugRenderer();
 
-        redBody = world.createBody(redBodyDef);
+    createFallingBody();
+    createGroundBody();
+  }
 
-// Define a shape for the body
-        PolygonShape redShape = new PolygonShape();
-        redShape.setAsBox(0.5f, 0.5f); // Create a box 1x1 in size
+  private void createFallingBody() {
+    // Define the body
+    BodyDef bodyDef = new BodyDef();
+    bodyDef.type = BodyDef.BodyType.DynamicBody; // Falling due to gravity
+    bodyDef.position.set(
+        viewport.getWorldWidth() / 2, viewport.getWorldHeight() - 1); // Place above ground
 
-// Attach the shape to the body with a fixture
-        redBody.createFixture(redShape, 1.0f);
-        redShape.dispose();
+    redBody = world.createBody(bodyDef);
 
-// Set angular velocity to make it spin
-        redBody.setAngularVelocity(1.0f); // Radians per second
+    // Define the shape
+    PolygonShape shape = new PolygonShape();
+    float halfWidth = image.getWidth() / 2f / 100f; // Convert pixels to meters
+    float halfHeight = image.getHeight() / 2f / 100f;
+    shape.setAsBox(halfWidth, halfHeight);
 
-    }
+    // Define the fixture
+    FixtureDef fixtureDef = new FixtureDef();
+    fixtureDef.shape = shape;
+    fixtureDef.density = 1f;
+    fixtureDef.friction = 0.5f;
+    fixtureDef.restitution = 0.2f; // Slight bounciness
 
-    @Override
-    public void render(float delta) {
-        Gdx.gl.glClearColor(0, 0, 0, 1);
-        Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
+    redBody.createFixture(fixtureDef);
+    shape.dispose();
+  }
 
-        camera.update();
-        batch.setProjectionMatrix(camera.combined);
+  private void createGroundBody() {
+    // Position the ground at the bottom of the screen
+    float groundY = 1f; // Half meter above the bottom in world units
 
-        batch.begin();
+    // Define the body
+    BodyDef bodyDef = new BodyDef();
+    bodyDef.type = BodyDef.BodyType.StaticBody; // Does not move
+    bodyDef.position.set(viewport.getWorldWidth() / 2, groundY);
 
-        int screenWidth = Gdx.graphics.getWidth();
-        int screenHeight = Gdx.graphics.getHeight();
+    groundBody = world.createBody(bodyDef);
 
-        int imageWidth = background.getWidth();
-        int imageHeight = background.getHeight();
+    // Define the shape
+    EdgeShape groundShape = new EdgeShape();
+    groundShape.set(
+        -viewport.getWorldWidth() / 2, 0, viewport.getWorldWidth() / 2, 0); // Line across the width
 
-        float scaleX = (float) screenWidth / imageWidth;
-        float scaleY = (float) screenHeight / imageHeight;
-        float scale = Math.max(scaleX, scaleY);
+    // Define the fixture
+    FixtureDef fixtureDef = new FixtureDef();
+    fixtureDef.shape = groundShape;
+    fixtureDef.friction = 0.8f;
 
-        float x = (screenWidth - imageWidth * scale) / 2;
-        float y = (screenHeight - imageHeight * scale) / 2;
+    groundBody.createFixture(fixtureDef);
+    groundShape.dispose();
+  }
 
-        batch.draw(background,
-            camera.position.x - camera.viewportWidth / 2,
-            camera.position.y - camera.viewportHeight / 2,
-            camera.viewportWidth,
-            camera.viewportHeight);
+  @Override
+  public void render(float delta) {
+    Gdx.gl.glClearColor(0, 0, 0, 1);
+    Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
 
-        // Synchronize red.png with the Box2D body
-        float x1 = redBody.getPosition().x - 0.5f; // Center the texture on the body
-        float y1 = redBody.getPosition().y - 0.5f;
-        float rotation = (float) Math.toDegrees(redBody.getAngle()); // Convert radians to degrees
+    camera.update();
+    batch.setProjectionMatrix(camera.combined);
 
-        batch.draw(image, x, y, 0.5f, 0.5f, 5, 5, 5, 5, rotation, 0, 0, image.getWidth(), image.getHeight(), false, false);
+    batch.begin();
 
+    // Draw the background
+    batch.draw(
+        background,
+        camera.position.x - camera.viewportWidth / 2,
+        camera.position.y - camera.viewportHeight / 2,
+        camera.viewportWidth,
+        camera.viewportHeight);
 
-        batch.end();
+    // Get the red body's position
+    Vector2 position = redBody.getPosition();
+    float angle = redBody.getAngle();
 
-        debugRenderer.render(world, camera.combined);
-        world.step(1/60f, 6, 2);
-        stage.act(delta);
-        stage.draw();
-    }
+    // Convert position from meters to pixels and draw the texture to fit the body's size
+    float bodyWidth = image.getWidth() / 100f; // Convert pixels to meters
+    float bodyHeight = image.getHeight() / 100f;
+    batch.draw(
+        image,
+        position.x - bodyWidth / 2,
+        position.y - bodyHeight / 2,
+        bodyWidth / 2,
+        bodyHeight / 2,
+        bodyWidth,
+        bodyHeight,
+        1f,
+        1f,
+        (float) Math.toDegrees(angle),
+        0,
+        0,
+        image.getWidth(),
+        image.getHeight(),
+        false,
+        false);
 
-    @Override
-    public void resize(int width, int height) {
-        viewport.update(width, height);
-    }
+    batch.end();
 
-    @Override
-    public void show() {
-    }
+    debugRenderer.render(world, camera.combined);
+    world.step(1 / 60f, 6, 2);
+    stage.act(delta);
+    stage.draw();
+  }
 
-    @Override
-    public void hide() {
-    }
+  @Override
+  public void resize(int width, int height) {
+    viewport.update(width, height);
+    camera.position.set(viewport.getWorldWidth() / 2, viewport.getWorldHeight() / 2, 0);
+    camera.update();
+  }
 
-    @Override
-    public void pause() {
-    }
+  @Override
+  public void show() {}
 
-    @Override
-    public void resume() {
-    }
+  @Override
+  public void hide() {}
 
-    @Override
-    public void dispose() {
-        batch.dispose();
-        image.dispose();
-        world.dispose();
-        debugRenderer.dispose();
-        stage.dispose();
-        skin.dispose();
-    }
+  @Override
+  public void pause() {}
 
+  @Override
+  public void resume() {}
+
+  @Override
+  public void dispose() {
+    batch.dispose();
+    image.dispose();
+    world.dispose();
+    debugRenderer.dispose();
+    stage.dispose();
+    skin.dispose();
+  }
 }
