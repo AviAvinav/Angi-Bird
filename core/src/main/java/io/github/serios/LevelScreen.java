@@ -22,13 +22,14 @@ public class LevelScreen implements Screen {
   private SpriteBatch batch;
   private Texture image;
   private Texture background;
-  private Body redBody;
+  private Body redBody, pigBody;
   private Body groundBody;
   private MouseJoint mouseJoint;
   private MouseJointDef mouseJointDef;
   private Body dummyBody;
   private Body slingBody;
-  private Texture slingTexture;
+  private Texture slingTexture, pigTexture;
+  private Texture woodstickhorizontalTexture, woodboxTexture, woodtriangleTexture;
 
   public LevelScreen(Main game) {
     camera = new OrthographicCamera();
@@ -39,23 +40,56 @@ public class LevelScreen implements Screen {
     batch = new SpriteBatch();
     background = new Texture("levelBackground.jpg");
     image = new Texture("red.png");
+    slingTexture = new Texture("slingshot.png");
+    pigTexture = new Texture("pig.png");
+    woodstickhorizontalTexture = new Texture("woodstickhorizontal.png");
+    woodboxTexture = new Texture("woodbox.png");
+    woodtriangleTexture = new Texture("woodtriangle.png");
+
     world = new World(new Vector2(0, -9.8f), true);
     debugRenderer = new Box2DDebugRenderer();
 
     createFallingBody();
     createGroundBody();
+    createSlingshotBody();
     setupInputProcessor();
 
     // Create a dummy body for the MouseJoint
     BodyDef bodyDef = new BodyDef();
     bodyDef.type = BodyDef.BodyType.StaticBody;
     dummyBody = world.createBody(bodyDef);
+
+    // Set ContactListener
+    world.setContactListener(
+        new ContactListener() {
+          @Override
+          public void beginContact(Contact contact) {
+            Fixture fixtureA = contact.getFixtureA();
+            Fixture fixtureB = contact.getFixtureB();
+
+            // Check if one fixture is from redBody and the other from pigBody
+            if ((fixtureA.getBody() == redBody && fixtureB.getBody() == pigBody)
+                || (fixtureA.getBody() == pigBody && fixtureB.getBody() == redBody)) {
+              // Flag pigBody for removal
+              pigBody.setUserData("destroy");
+            }
+          }
+
+          @Override
+          public void endContact(Contact contact) {}
+
+          @Override
+          public void preSolve(Contact contact, Manifold oldManifold) {}
+
+          @Override
+          public void postSolve(Contact contact, ContactImpulse impulse) {}
+        });
   }
 
   private void createFallingBody() {
     BodyDef bodyDef = new BodyDef();
     bodyDef.type = BodyDef.BodyType.DynamicBody;
-    bodyDef.position.set(viewport.getWorldWidth() / 2, viewport.getWorldHeight() - 1);
+    bodyDef.position.set(viewport.getWorldWidth() / 4.5f, viewport.getWorldHeight() - 1);
     redBody = world.createBody(bodyDef);
 
     PolygonShape shape = new PolygonShape();
@@ -71,6 +105,26 @@ public class LevelScreen implements Screen {
 
     redBody.createFixture(fixtureDef);
     shape.dispose();
+
+    // Create a pig
+    BodyDef pigBodyDef = new BodyDef();
+    pigBodyDef.type = BodyDef.BodyType.DynamicBody;
+    pigBodyDef.position.set(viewport.getWorldWidth() / 1.5f, viewport.getWorldHeight() - 1);
+    pigBody = world.createBody(pigBodyDef);
+
+    PolygonShape pigShape = new PolygonShape();
+    float pigHalfWidth = pigTexture.getWidth() / 2f / 100f / 30f;
+    float pigHalfHeight = pigTexture.getHeight() / 2f / 100f / 30f;
+    pigShape.setAsBox(pigHalfWidth, pigHalfHeight);
+
+    FixtureDef pigFixtureDef = new FixtureDef();
+    pigFixtureDef.shape = pigShape;
+    pigFixtureDef.density = 1f;
+    pigFixtureDef.friction = 0.5f;
+    pigFixtureDef.restitution = 0.2f;
+
+    pigBody.createFixture(pigFixtureDef);
+    pigShape.dispose();
   }
 
   private void createGroundBody() {
@@ -91,6 +145,26 @@ public class LevelScreen implements Screen {
 
     groundBody.createFixture(fixtureDef);
     groundShape.dispose();
+  }
+
+  private void createSlingshotBody() {
+    BodyDef slingBodyDef = new BodyDef();
+    slingBodyDef.type = BodyDef.BodyType.StaticBody;
+    slingBodyDef.position.set(
+        viewport.getWorldWidth() / 4.5f, 1.4f); // Set the position of the slingshot
+
+    slingBody = world.createBody(slingBodyDef);
+
+    PolygonShape slingshotShape = new PolygonShape();
+    float slingshotWidth = (slingTexture.getWidth() / 100f / 30f) * 0.5f;
+    float slingshotHeight = (slingTexture.getHeight() / 100f / 30f) * 0.8f;
+    slingshotShape.setAsBox(slingshotWidth / 2, slingshotHeight / 2);
+
+    FixtureDef fixtureDef = new FixtureDef();
+    fixtureDef.shape = slingshotShape;
+
+    slingBody.createFixture(fixtureDef);
+    slingshotShape.dispose();
   }
 
   private Vector2 dragStart = new Vector2(); // To store the drag start position
@@ -164,6 +238,15 @@ public class LevelScreen implements Screen {
         camera.viewportWidth,
         camera.viewportHeight);
 
+    float slingshotWidth = (slingTexture.getWidth() / 100f / 30f) * 4;
+    float slingshotHeight = (slingTexture.getHeight() / 100f / 30f) * 4;
+    batch.draw(
+        slingTexture,
+        slingBody.getPosition().x - slingshotWidth / 2,
+        slingBody.getPosition().y - slingshotHeight / 2,
+        slingshotWidth,
+        slingshotHeight);
+
     Vector2 position = redBody.getPosition();
     float angle = redBody.getAngle();
     float bodyWidth = image.getWidth() / 100f / 30f;
@@ -185,7 +268,36 @@ public class LevelScreen implements Screen {
         image.getHeight(),
         false,
         false);
+
+    if (pigBody != null && pigBody.getUserData() == null) {
+      Vector2 pigPosition = pigBody.getPosition();
+      float pigAngle = pigBody.getAngle();
+      float pigWidth = pigTexture.getWidth() / 100f / 30f;
+      float pigHeight = pigTexture.getHeight() / 100f / 30f;
+      batch.draw(
+          pigTexture,
+          pigPosition.x - pigWidth / 2,
+          pigPosition.y - pigHeight / 2,
+          pigWidth / 2,
+          pigHeight / 2,
+          pigWidth,
+          pigHeight,
+          1f,
+          1f,
+          (float) Math.toDegrees(pigAngle),
+          0,
+          0,
+          pigTexture.getWidth(),
+          pigTexture.getHeight(),
+          false,
+          false);
+    }
     batch.end();
+
+    if (pigBody != null && "destroy".equals(pigBody.getUserData())) {
+      world.destroyBody(pigBody);
+      pigBody = null;
+    }
 
     world.step(1 / 60f, 6, 2);
   }
@@ -193,28 +305,31 @@ public class LevelScreen implements Screen {
   @Override
   public void resize(int width, int height) {
     viewport.update(width, height);
-    camera.position.set(viewport.getWorldWidth() / 2, viewport.getWorldHeight() / 2, 0);
-    camera.update();
   }
-
-  @Override
-  public void dispose() {
-    batch.dispose();
-    image.dispose();
-    world.dispose();
-    debugRenderer.dispose();
-    background.dispose();
-  }
-
-  @Override
-  public void show() {}
-
-  @Override
-  public void hide() {}
 
   @Override
   public void pause() {}
 
   @Override
   public void resume() {}
+
+  @Override
+  public void hide() {}
+
+  @Override
+  public void dispose() {
+    world.dispose();
+    debugRenderer.dispose();
+    batch.dispose();
+    image.dispose();
+    background.dispose();
+    slingTexture.dispose();
+    pigTexture.dispose();
+    woodstickhorizontalTexture.dispose();
+    woodboxTexture.dispose();
+    woodtriangleTexture.dispose();
+  }
+
+  @Override
+  public void show() {}
 }

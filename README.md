@@ -1,5 +1,7 @@
 # chal_jaa
 
+make the angrybird slingshot a platform, wide so that even if one can't see it, boing
+
 A [libGDX](https://libgdx.com/) project generated with [gdx-liftoff](https://github.com/libgdx/gdx-liftoff).
 
 This project was generated with a template including simple application launchers and an `ApplicationAdapter` extension that draws libGDX logo.
