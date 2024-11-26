@@ -20,7 +20,7 @@ public class Main extends Game {
     DisplayMode displayMode = Gdx.graphics.getDisplayMode();
 
     Gdx.graphics.setFullscreenMode(displayMode);
-    this.setScreen(new LevelScreen(this));
+    this.setScreen(new MenuScreen(this));
   }
 
   @Override

@@ -27,7 +27,7 @@ public class LevelScreen implements Screen {
   private MouseJoint mouseJoint;
   private MouseJointDef mouseJointDef;
   private Body dummyBody;
-  private Body slingBody;
+  private Body slingBody, woodboxBody;
   private Texture slingTexture, pigTexture;
   private Texture woodstickhorizontalTexture, woodboxTexture, woodtriangleTexture;
 
@@ -70,6 +70,20 @@ public class LevelScreen implements Screen {
             // Check if one fixture is from redBody and the other from pigBody
             if ((fixtureA.getBody() == redBody && fixtureB.getBody() == pigBody)
                 || (fixtureA.getBody() == pigBody && fixtureB.getBody() == redBody)) {
+              // Flag pigBody for removal
+              pigBody.setUserData("destroy");
+            }
+
+            // Check if one fixture is from redBody and the other from woodboxBody
+            if ((fixtureA.getBody() == redBody && fixtureB.getBody() == woodboxBody)
+                || (fixtureA.getBody() == woodboxBody && fixtureB.getBody() == redBody)) {
+              // Flag woodboxBody for removal
+              woodboxBody.setUserData("destroy");
+            }
+
+            // Check if one fixture is from pigBody and the other from groundBody
+            if ((fixtureA.getBody() == pigBody && fixtureB.getBody() == groundBody)
+                || (fixtureA.getBody() == groundBody && fixtureB.getBody() == pigBody)) {
               // Flag pigBody for removal
               pigBody.setUserData("destroy");
             }
@@ -125,6 +139,25 @@ public class LevelScreen implements Screen {
 
     pigBody.createFixture(pigFixtureDef);
     pigShape.dispose();
+
+    BodyDef woodboxBodyDef = new BodyDef();
+    woodboxBodyDef.type = BodyDef.BodyType.DynamicBody;
+    woodboxBodyDef.position.set(viewport.getWorldWidth() / 1.5f, viewport.getWorldHeight() - 1);
+    woodboxBody = world.createBody(woodboxBodyDef);
+
+    PolygonShape woodboxShape = new PolygonShape();
+    float woodboxHalfWidth = woodboxTexture.getWidth() / 2f / 100f / 5f;
+    float woodboxHalfHeight = woodboxTexture.getHeight() / 2f / 100f / 5f;
+    woodboxShape.setAsBox(woodboxHalfWidth, woodboxHalfHeight);
+
+    FixtureDef woodboxFixtureDef = new FixtureDef();
+    woodboxFixtureDef.shape = woodboxShape;
+    woodboxFixtureDef.density = 1f;
+    woodboxFixtureDef.friction = 0.5f;
+    woodboxFixtureDef.restitution = 0.2f;
+
+    woodboxBody.createFixture(woodboxFixtureDef);
+    woodboxShape.dispose();
   }
 
   private void createGroundBody() {
@@ -269,6 +302,29 @@ public class LevelScreen implements Screen {
         false,
         false);
 
+    if (woodboxBody != null && woodboxBody.getUserData() == null) {
+      Vector2 woodboxPosition = woodboxBody.getPosition();
+      float woodboxAngle = woodboxBody.getAngle();
+      float woodboxWidth = woodboxTexture.getWidth() / 100f / 5f;
+      float woodboxHeight = woodboxTexture.getHeight() / 100f / 5f;
+      batch.draw(
+          woodboxTexture,
+          woodboxPosition.x - woodboxWidth / 2,
+          woodboxPosition.y - woodboxHeight / 2,
+          woodboxWidth / 2,
+          woodboxHeight / 2,
+          woodboxWidth,
+          woodboxHeight,
+          1f,
+          1f,
+          (float) Math.toDegrees(woodboxAngle),
+          0,
+          0,
+          woodboxTexture.getWidth(),
+          woodboxTexture.getHeight(),
+          false,
+          false);
+    }
     if (pigBody != null && pigBody.getUserData() == null) {
       Vector2 pigPosition = pigBody.getPosition();
       float pigAngle = pigBody.getAngle();
@@ -297,6 +353,11 @@ public class LevelScreen implements Screen {
     if (pigBody != null && "destroy".equals(pigBody.getUserData())) {
       world.destroyBody(pigBody);
       pigBody = null;
+    }
+
+    if (woodboxBody != null && "destroy".equals(woodboxBody.getUserData())) {
+      world.destroyBody(woodboxBody);
+      woodboxBody = null;
     }
 
     world.step(1 / 60f, 6, 2);
