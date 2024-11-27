@@ -56,18 +56,23 @@ public class GameScreen implements Screen {
     stage.addActor(table);
 
     for (int i = 1; i <= 30; i++) {
-      TextButton levelButton = new TextButton("Level " + i, skin, (i == 1 ? "levelbutton-style" : "lockedlevel-style"));
+      TextButton levelButton = new TextButton("Level " + i, skin, ((i == 1 || i == 2)? "levelbutton-style" : "lockedlevel-style"));
       levelButton.getLabelCell().pad(10);
 
       final int level = i;
-      if (i == 1)
-        levelButton.addListener(
-            new ClickListener() {
-              @Override
-              public void clicked(InputEvent event, float x, float y) {
-                game.setScreen(new LevelScreen(game));
-              }
-            });
+        if (i == 1 || i == 2) {
+            levelButton.addListener(
+                new ClickListener() {
+                    @Override
+                    public void clicked(InputEvent event, float x, float y) {
+                        if (level == 1) {
+                            game.setScreen(new LevelScreen(game));
+                        } else if (level == 2) {
+                            game.setScreen(new Level2Screen(game));
+                        }
+                    }
+                });
+        }
 
       table.add(levelButton).width(110).height(110).pad(25);
 

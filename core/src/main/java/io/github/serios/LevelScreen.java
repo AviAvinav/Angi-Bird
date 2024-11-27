@@ -1,8 +1,6 @@
 package io.github.serios;
 
-import com.badlogic.gdx.Gdx;
-import com.badlogic.gdx.InputAdapter;
-import com.badlogic.gdx.Screen;
+import com.badlogic.gdx.*;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.Texture;
@@ -16,6 +14,7 @@ import com.badlogic.gdx.utils.viewport.Viewport;
 
 public class LevelScreen implements Screen {
   private World world;
+  private final Main game;
   private Box2DDebugRenderer debugRenderer;
   private OrthographicCamera camera;
   private Viewport viewport;
@@ -30,8 +29,10 @@ public class LevelScreen implements Screen {
   private Body slingBody, woodboxBody;
   private Texture slingTexture, pigTexture;
   private Texture woodstickhorizontalTexture, woodboxTexture, woodtriangleTexture;
+  private boolean redBodyLaunched = false;
 
   public LevelScreen(Main game) {
+    this.game = game;
     camera = new OrthographicCamera();
     viewport = new FitViewport(800 / 100f, 480 / 100f, camera);
     camera.position.set(viewport.getWorldWidth() / 2, viewport.getWorldHeight() / 2, 0);
@@ -201,41 +202,55 @@ public class LevelScreen implements Screen {
   }
 
   private Vector2 dragStart = new Vector2(); // To store the drag start position
+  private Vector2 slingshotAnchor; // Slingshot anchor point
+  private float maxDragRadius = 2.0f;
 
   private void setupInputProcessor() {
+    slingshotAnchor = new Vector2(viewport.getWorldWidth() / 4.5f, 1.4f);
     Gdx.input.setInputProcessor(
         new InputAdapter() {
           @Override
           public boolean touchDown(int screenX, int screenY, int pointer, int button) {
-            Vector2 worldCoordinates = viewport.unproject(new Vector2(screenX, screenY));
-            if (redBody.getFixtureList().first().testPoint(worldCoordinates)) {
-              if (mouseJoint == null) {
-                mouseJointDef = new MouseJointDef();
-                mouseJointDef.bodyA = dummyBody;
-                mouseJointDef.bodyB = redBody;
-                mouseJointDef.collideConnected = true;
-                mouseJointDef.target.set(worldCoordinates);
-                mouseJointDef.maxForce = 1000.0f * redBody.getMass();
-                mouseJoint = (MouseJoint) world.createJoint(mouseJointDef);
-                dragStart.set(worldCoordinates); // Store the start position
+            if (!redBodyLaunched) { // Allow touch only if not launched
+              Vector2 worldCoordinates = viewport.unproject(new Vector2(screenX, screenY));
+              if (redBody.getFixtureList().first().testPoint(worldCoordinates)) {
+                if (mouseJoint == null) {
+                  mouseJointDef = new MouseJointDef();
+                  mouseJointDef.bodyA = dummyBody;
+                  mouseJointDef.bodyB = redBody;
+                  mouseJointDef.collideConnected = true;
+                  mouseJointDef.target.set(worldCoordinates);
+                  mouseJointDef.maxForce = 1000.0f * redBody.getMass();
+                  mouseJoint = (MouseJoint) world.createJoint(mouseJointDef);
+                  dragStart.set(worldCoordinates); // Store the start position
+                }
+                return true;
               }
-              return true;
             }
             return false;
           }
 
           @Override
           public boolean touchDragged(int screenX, int screenY, int pointer) {
-            if (mouseJoint != null) {
+            if (mouseJoint != null && !redBodyLaunched) {
               Vector2 worldCoordinates = viewport.unproject(new Vector2(screenX, screenY));
-              mouseJoint.setTarget(worldCoordinates);
+
+              // Restrict movement within the slingshot radius
+              Vector2 anchorToDrag = worldCoordinates.sub(slingshotAnchor);
+              if (anchorToDrag.len() > maxDragRadius) {
+                anchorToDrag.nor().scl(maxDragRadius);
+              }
+              Vector2 clampedPosition = slingshotAnchor.cpy().add(anchorToDrag);
+
+              // Update the mouse joint target
+              mouseJoint.setTarget(clampedPosition);
             }
             return true;
           }
 
           @Override
           public boolean touchUp(int screenX, int screenY, int pointer, int button) {
-            if (mouseJoint != null) {
+            if (mouseJoint != null && !redBodyLaunched) {
               // Calculate release velocity
               Vector2 releasePosition = viewport.unproject(new Vector2(screenX, screenY));
               Vector2 dragDirection =
@@ -249,6 +264,9 @@ public class LevelScreen implements Screen {
               // Destroy the mouse joint
               world.destroyJoint(mouseJoint);
               mouseJoint = null;
+
+              // Mark the redBody as launched
+              redBodyLaunched = true;
             }
             return true;
           }
@@ -393,4 +411,8 @@ public class LevelScreen implements Screen {
 
   @Override
   public void show() {}
+
+  public InputProcessor getInputProcessor() {
+    return Gdx.input.getInputProcessor();
+  }
 }
