@@ -374,7 +374,7 @@ public class Level2Screen implements Screen {
                                 mouseJointDef.target.set(worldCoordinates);
                                 mouseJointDef.maxForce = 1000.0f * chuckBody.getMass();
                                 mouseJoint = (MouseJoint) world.createJoint(mouseJointDef);
-                                dragStart.set(worldCoordinates); // Store the start position
+                                dragStart.set(worldCoordinates);
                             }
                             return true;
                         }
@@ -412,14 +412,19 @@ public class Level2Screen implements Screen {
                     return false;
                 }
 
+                private static final float DRAG_RADIUS = 0.5f;
+
                 @Override
                 public boolean touchDragged(int screenX, int screenY, int pointer) {
+                    Vector2 worldCoordinates = viewport.unproject(new Vector2(screenX, screenY));
                     if (mouseJoint != null) {
-                        Vector2 worldCoordinates = viewport.unproject(new Vector2(screenX, screenY));
-                        mouseJoint.setTarget(worldCoordinates);
-                    } else if (mouseJoint2 != null){
-                        Vector2 worldCoordinates2 = viewport.unproject(new Vector2(screenX, screenY));
-                        mouseJoint2.setTarget(worldCoordinates2);
+                        if (worldCoordinates.dst(dragStart) <= DRAG_RADIUS) {
+                            mouseJoint.setTarget(worldCoordinates);
+                        }
+                    } else if (mouseJoint2 != null) {
+                        if (worldCoordinates.dst(dragStart) <= DRAG_RADIUS) {
+                            mouseJoint2.setTarget(worldCoordinates);
+                        }
                     }
                     return true;
                 }
@@ -427,17 +432,14 @@ public class Level2Screen implements Screen {
                 @Override
                 public boolean touchUp(int screenX, int screenY, int pointer, int button) {
                     if (mouseJoint != null && chuckBody != null) {
-                        // Calculate release velocity
                         Vector2 releasePosition = viewport.unproject(new Vector2(screenX, screenY));
                         Vector2 dragDirection =
-                            dragStart.sub(releasePosition); // Opposite direction of the drag
-                        float velocityMultiplier = 5f; // Adjust this for speed control
+                            dragStart.sub(releasePosition);
+                        float velocityMultiplier = 7f;
                         Vector2 releaseVelocity = dragDirection.scl(velocityMultiplier);
 
-                        // Apply the velocity to the chuckBody
                         chuckBody.setLinearVelocity(releaseVelocity);
 
-                        // Destroy the mouse joint
                         world.destroyJoint(mouseJoint);
                         mouseJoint = null;
 
@@ -448,7 +450,7 @@ public class Level2Screen implements Screen {
                        Vector2 releasePosition2 = viewport.unproject(new Vector2(screenX, screenY));
                        Vector2 dragDirection2 =
                            dragStart.sub(releasePosition2); // Opposite direction of the drag
-                       float velocityMultiplier2 = 5f; // Adjust this for speed control
+                       float velocityMultiplier2 = 7f; // Adjust this for speed control
                        Vector2 releaseVelocity2 = dragDirection2.scl(velocityMultiplier2);
 
                        // Apply the velocity to the redBody

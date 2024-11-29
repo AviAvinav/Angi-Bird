@@ -285,20 +285,15 @@ public class LevelScreen implements Screen {
                     return false;
                 }
 
+                private static final float DRAG_RADIUS = 0.5f;
+
                 @Override
                 public boolean touchDragged(int screenX, int screenY, int pointer) {
-                    if (mouseJoint != null && !redBodyLaunched) {
-                        Vector2 worldCoordinates = viewport.unproject(new Vector2(screenX, screenY));
-
-                        // Restrict movement within the slingshot radius
-                        Vector2 anchorToDrag = worldCoordinates.sub(slingshotAnchor);
-                        if (anchorToDrag.len() > maxDragRadius) {
-                            anchorToDrag.nor().scl(maxDragRadius);
+                    Vector2 worldCoordinates = viewport.unproject(new Vector2(screenX, screenY));
+                    if (mouseJoint != null) {
+                        if (worldCoordinates.dst(dragStart) <= DRAG_RADIUS) {
+                            mouseJoint.setTarget(worldCoordinates);
                         }
-                        Vector2 clampedPosition = slingshotAnchor.cpy().add(anchorToDrag);
-
-                        // Update the mouse joint target
-                        mouseJoint.setTarget(clampedPosition);
                     }
                     return true;
                 }
@@ -320,7 +315,7 @@ public class LevelScreen implements Screen {
                         Vector2 releasePosition = viewport.unproject(new Vector2(screenX, screenY));
                         Vector2 dragDirection =
                             dragStart.sub(releasePosition); // Opposite direction of the drag
-                        float velocityMultiplier = 5f; // Adjust this for speed control
+                        float velocityMultiplier = 7f; // Adjust this for speed control
                         Vector2 releaseVelocity = dragDirection.scl(velocityMultiplier);
 
                         // Apply the velocity to the redBody
@@ -497,8 +492,6 @@ public class LevelScreen implements Screen {
         }
 
         world.step(1 / 60f, 6, 2);
-
-        debugRenderer.render(world, camera.combined);
     }
 
     @Override
